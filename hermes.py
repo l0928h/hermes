@@ -2,6 +2,7 @@ import nmap
 import requests
 import msgpack
 import time
+import json
 
 class MetasploitAPI:
     def __init__(self, host, port, username, password):
@@ -123,6 +124,11 @@ def select_tool():
         else:
             print("Invalid choice. Please enter 'Nmap' or 'Metasploit'.")
 
+def save_to_json(data, filename):
+    with open(filename, 'w') as json_file:
+        json.dump(data, json_file, indent=4)
+    print(f"Scan results saved to {filename}")
+
 # 示例使用
 tool_choice = select_tool()
 targets = get_targets_from_input()
@@ -133,10 +139,12 @@ if tool_choice == 'nmap':
     # Nmap 扫描
     nmap_results = scan_with_nmap(targets)
     print("Nmap Scan Results:", nmap_results)
+    
+    # 保存为 JSON 文件
+    save_to_json(nmap_results, 'nmap_scan_results.json')
+
 elif tool_choice == 'metasploit':
     # Metasploit 利用
     msf_api = MetasploitAPI(host='127.0.0.1', port=55553, username='msf', password='your_password')
     for target in nmap_results:
         exploit_with_metasploit(msf_api, target, lhost, lport)
-
-
