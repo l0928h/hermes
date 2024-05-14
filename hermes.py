@@ -97,7 +97,7 @@ def scan_with_nmap(targets):
     nm = nmap.PortScanner()
     scan_arguments = '-sS -sV -O -p-'
     print(f"Scanning {targets} with arguments: {scan_arguments}")
-    nm.scan(hosts=','.join(targets), arguments=scan_arguments)
+    nm.scan(hosts=','.join(targets), arguments=scan_arguments, callback=scan_callback)
 
     results = {}
     for host in nm.all_hosts():
@@ -119,6 +119,10 @@ def scan_with_nmap(targets):
                     'cpe': port_info.get('cpe', '')
                 })
     return results
+
+def scan_callback(host, scan_result):
+    print(f"Scanning {host} completed.")
+    save_to_json(scan_result, f"{host}_partial_scan.json")
 
 def exploit_with_metasploit(api, target, lhost, lport):
     if not api.login():
