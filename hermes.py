@@ -129,22 +129,23 @@ def save_to_json(data, filename):
         json.dump(data, json_file, indent=4)
     print(f"Scan results saved to {filename}")
 
+def read_json_file(filename):
+    with open(filename, 'r') as json_file:
+        data = json.load(json_file)
+    return data
+
 # 示例使用
 tool_choice = select_tool()
-targets = get_targets_from_input()
-lhost = '192.168.1.101'
-lport = 4444
-
 if tool_choice == 'nmap':
+    # 从 JSON 文件中读取扫描目标
+    nmap_scan_file = input("Enter the path to the JSON file containing Nmap scan results: ")
+    nmap_results = read_json_file(nmap_scan_file)
+    print("Nmap Scan Results:", nmap_results)
+elif tool_choice == 'metasploit':
     # Nmap 扫描
+    targets = get_targets_from_input()
+    lhost = '192.168.1.101'
+    lport = 4444
     nmap_results = scan_with_nmap(targets)
     print("Nmap Scan Results:", nmap_results)
-    
-    # 保存为 JSON 文件
-    save_to_json(nmap_results, 'nmap_scan_results.json')
-
-elif tool_choice == 'metasploit':
-    # Metasploit 利用
-    msf_api = MetasploitAPI(host='127.0.0.1', port=55553, username='msf', password='your_password')
-    for target in nmap_results:
-        exploit_with_metasploit(msf_api, target, lhost, lport)
+    # 保存为 JSON
