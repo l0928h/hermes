@@ -96,32 +96,34 @@ def read_json_file(filename):
 def scan_with_nmap(targets):
     nm = nmap.PortScanner()
     scan_arguments = '-sS -sV -O -p-'
-    print(f"Scanning {targets} with arguments: {scan_arguments}")
-    for target in targets:
-        nm.scan(hosts=target, arguments=scan_arguments)
-        print(f"Completed scan of {target}")
-        # Save partial results after each host is scanned
-        save_to_json({target: nm[target]}, f"{target}_scan_results.json")
-
     results = {}
-    for host in nm.all_hosts():
-        results[host] = {
-            'hostname': nm[host].hostname(),
-            'state': nm[host].state(),
-            'osclass': nm[host].get('osclass', []),
-            'ports': []
-        }
-        for proto in nm[host].all_protocols():
-            ports = nm[host][proto].keys()
-            for port in sorted(ports):
-                port_info = nm[host][proto][port]
-                results[host]['ports'].append({
-                    'port': port,
-                    'state': port_info['state'],
-                    'service': port_info.get('product', ''),
-                    'version': port_info.get('version', ''),
-                    'cpe': port_info.get('cpe', '')
-                })
+
+    for target in targets:
+        print(f"Scanning {target} with arguments: {scan_arguments}")
+        nm.scan(hosts=target, arguments=scan_arguments)
+        if target in nm.all_hosts():
+            results[target] = {
+                'hostname': nm[target].hostname(),
+                'state': nm[target].state(),
+                'osclass': nm[target].get('osclass', []),
+                'ports': []
+            }
+            for proto in nm[target].all_protocols():
+                ports = nm[target][proto].keys()
+                for port in sorted(ports):
+                    port_info = nm[target][proto][port]
+                    results[target]['ports'].append({
+                        'port': port,
+                        'state': port_info['state'],
+                        'service': port_info.get('product', ''),
+                        'version': port_info.get('version', ''),
+                        'cpe': port_info.get('cpe', '')
+                    })
+            save_to_json(results[target], f"{target}_scan_results.json")
+        else:
+            print(f"No results found for {target}. The host may be down or not responding to scan types.")
+            results[target] = 'No results found'
+
     return results
 
 def exploit_with_metasploit(api, target, lhost, lport):
