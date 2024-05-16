@@ -1,0 +1,44 @@
+import json
+import argparse
+import datetime
+
+def read_targets(file_path, limit=None):
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+    # 根据用户指定的数量限制输出
+    return [item['url'] for item in data][:limit]
+
+def process_targets(targets):
+    # 基础处理逻辑：只是添加"Processed:"前缀
+    processed_targets = [f"Processed: {target}" for target in targets]
+    return processed_targets
+
+def save_output(output, file_path):
+    with open(file_path, 'w') as file:
+        for line in output:
+            file.write(line + '\n')
+
+def generate_output_filename():
+    current_time = datetime.datetime.now()
+    return f"data/output_{current_time.strftime('%Y%m%d_%H%M%S')}.txt"
+
+def main():
+    parser = argparse.ArgumentParser(description='Process a list of URLs from a JSON file.')
+    parser.add_argument('--input_file', help='Path to the input JSON file', default='data/input_websites_list.json')
+    parser.add_argument('--output_file', help='Path to save the processed output', default=generate_output_filename())
+    parser.add_argument('--limit', type=int, help='Limit the number of URLs to process', default=None)
+
+    args = parser.parse_args()
+
+    # 读取目标
+    targets = read_targets(args.input_file, args.limit)
+    
+    # 处理目标
+    processed_targets = process_targets(targets)
+    
+    # 保存结果
+    save_output(processed_targets, args.output_file)
+    print(f"Output saved to {args.output_file}")
+
+if __name__ == "__main__":
+    main()
